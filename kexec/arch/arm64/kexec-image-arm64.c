@@ -17,7 +17,7 @@
 int image_arm64_probe(const char *kernel_buf, off_t kernel_size)
 {
 	const struct arm64_image_header *h;
-
+	dbgprintf("%s: arm64 image header.\n", __func__);
 	if (kernel_size < sizeof(struct arm64_image_header)) {
 		dbgprintf("%s: No arm64 image header.\n", __func__);
 		return -1;
@@ -62,17 +62,17 @@ int image_arm64_load(int argc, char **argv, const char *kernel_buf,
 	}
 
 	header = (const struct arm64_image_header *)(kernel_buf);
-
+	fprintf(stdout, "[DB] arm64_process_image_header.\n");
 	if (arm64_process_image_header(header))
 		return EFAILED;
 
-        kernel_segment = arm64_locate_kernel_segment(info);
+    kernel_segment = arm64_locate_kernel_segment(info);
 
-        if (kernel_segment == ULONG_MAX) {
-                dbgprintf("%s: Kernel segment is not allocated\n", __func__);
+	if (kernel_segment == ULONG_MAX) {
+		dbgprintf("%s: Kernel segment is not allocated\n", __func__);
 		result = EFAILED;
-                goto exit;
-        }
+		goto exit;
+	}
 
 	dbgprintf("%s: kernel_segment: %016lx\n", __func__, kernel_segment);
 	dbgprintf("%s: text_offset:    %016lx\n", __func__,
@@ -97,6 +97,8 @@ int image_arm64_load(int argc, char **argv, const char *kernel_buf,
 	}
 
 	/* load the kernel */
+	// base 加上了 text_offset
+	// kernel_buf 和 kernel size 就相当于虚拟地址了
 	add_segment_phys_virt(info, kernel_buf, kernel_size,
 			kernel_segment + arm64_mem.text_offset,
 			arm64_mem.image_size, 0);

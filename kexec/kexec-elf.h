@@ -20,7 +20,7 @@ struct mem_ehdr {
 	unsigned long long e_phoff;
 	unsigned long long e_shoff;
 	unsigned e_notenum;
-	struct mem_phdr *e_phdr;
+	struct mem_phdr *e_phdr;    //
 	struct mem_shdr *e_shdr;
 	struct mem_note *e_note;
 	unsigned long rel_addr, rel_size;

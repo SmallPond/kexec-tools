@@ -521,6 +521,7 @@ void elf_rel_set_symbol(struct mem_ehdr *ehdr,
 		die("Symbol: %s is in a bss section cannot set\n", name);
 	}
 	sym_buf = (unsigned char *)(shdr->sh_data + sym.st_value);
+	dbgprintf("[DB]:%s: name:%s memcpy %p to %p size:%lu\n", __func__, name, buf, sym_buf, size);
 	memcpy(sym_buf, buf, size);
 }
 

@@ -77,6 +77,7 @@ char *zlib_decompress_file(const char *filename, off_t *r_size)
 		return NULL;
 	}
 	if (gzdirect(fp)) {
+		dbgprintf("[DB] It's not in gzip format`%s'\n", filename);
 		/* It's not in gzip format */
 		goto fail;
 	}

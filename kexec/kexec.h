@@ -150,8 +150,8 @@ struct memory_ranges {
 struct kexec_info {
 	struct kexec_segment *segment;
 	int nr_segments;
-	struct memory_range *memory_range;
-	int memory_ranges;
+	struct memory_range *memory_range; // 可用内存范围，排除 reserved 、kernel code、 kernel data
+	int memory_ranges;                 // 可用内存区块数量
 	struct memory_range *crash_range;
 	int nr_crash_ranges;
 	void *entry;

@@ -51,7 +51,7 @@
 /* Global flag which indicates that we have tried reading
  * PHYS_OFFSET from 'kcore' already.
  */
-static bool try_read_phys_offset_from_kcore = false;
+// static bool try_read_phys_offset_from_kcore = false;
 
 /* Machine specific details. */
 static int va_bits;
@@ -115,6 +115,7 @@ int arm64_process_image_header(const struct arm64_image_header *h)
 		return EFAILED;
 
 	if (h->image_size) {
+		// 在 zircon 中都是0
 		arm64_mem.text_offset = arm64_header_text_offset(h);
 		arm64_mem.image_size = arm64_header_image_size(h);
 	} else {
@@ -493,8 +494,8 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 	int len, range_len;
 	int nodeoffset;
 	int new_size;
-	int result, kaslr_seed;
-
+	// int result, kaslr_seed;
+	int result;
 	result = fdt_check_header(dtb->buf);
 
 	if (result) {
@@ -510,6 +511,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 	}
 
 	/* determine #address-cells and #size-cells */
+	// get_cells_size: #address-cells:2 #size-cells:1
 	result = get_cells_size(dtb->buf, &address_cells, &size_cells);
 	if (result) {
 		fprintf(stderr, "kexec: cannot determine cells-size.\n");
@@ -540,7 +542,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 	new_buf = xmalloc(new_size);
 	result = fdt_open_into(dtb->buf, new_buf, new_size);
 	if (result) {
-		dbgprintf("%s: fdt_open_into failed: %s\n", __func__,
+		fprintf(stderr, "%s: fdt_open_into failed: %s\n", __func__,
 				fdt_strerror(result));
 		result = -ENOSPC;
 		goto on_error;
@@ -551,7 +553,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 	prop = fdt_getprop_w(new_buf, nodeoffset,
 			"kaslr-seed", &len);
 	if (!prop || len != sizeof(uint64_t)) {
-		dbgprintf("%s: no kaslr-seed found\n",
+		fprintf(stderr, "%s: no kaslr-seed found\n",
 				__func__);
 		/* for kexec warm reboot case, we don't need to fixup
 		 * other dtb properties
@@ -564,17 +566,17 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 			return result;
 		}
 	} else {
-		kaslr_seed = fdt64_to_cpu(*prop);
+		// kaslr_seed = fdt64_to_cpu(*prop);
 
-		/* kaslr_seed must be wiped clean by primary
-		 * kernel during boot
-		 */
-		if (kaslr_seed != 0) {
-			dbgprintf("%s: kaslr-seed is not wiped to 0.\n",
-					__func__);
-			result = -EINVAL;
-			goto on_error;
-		}
+		// /* kaslr_seed must be wiped clean by primary
+		//  * kernel during boot
+		//  */
+		// if (kaslr_seed != 0) {
+		// 	fprintf(stderr, "%s: kaslr-seed is not wiped to 0.\n",
+		// 			__func__);
+		// 	result = -EINVAL;
+		// 	goto on_error;
+		// }
 
 		/*
 		 * Invoke the getrandom system call with
@@ -609,7 +611,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 				nodeoffset, "kaslr-seed",
 				&fdt_val64, sizeof(fdt_val64));
 		if (result) {
-			dbgprintf("%s: fdt_setprop failed: %s\n",
+			fprintf(stderr,"%s: fdt_setprop failed: %s\n",
 					__func__, fdt_strerror(result));
 			result = -EINVAL;
 			goto on_error;
@@ -623,7 +625,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 				PROP_ELFCOREHDR, &elfcorehdr_mem,
 				address_cells, size_cells);
 		if (result) {
-			dbgprintf("%s: fdt_setprop failed: %s\n", __func__,
+			fprintf(stderr, "%s: fdt_setprop failed: %s\n", __func__,
 					fdt_strerror(result));
 			result = -EINVAL;
 			goto on_error;
@@ -635,7 +637,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 				PROP_USABLE_MEM_RANGE, &crash_reserved_mem,
 				address_cells, size_cells);
 		if (result) {
-			dbgprintf("%s: fdt_setprop failed: %s\n", __func__,
+			fprintf(stderr, "%s: fdt_setprop failed: %s\n", __func__,
 					fdt_strerror(result));
 			result = -EINVAL;
 			goto on_error;
@@ -651,7 +653,7 @@ static int setup_2nd_dtb(struct dtb *dtb, char *command_line, int on_crash)
 	return result;
 
 on_error:
-	fprintf(stderr, "kexec: %s failed.\n", __func__);
+	fprintf(stderr, "[db] kexec: %s failed.\n", __func__);
 	if (new_buf)
 		free(new_buf);
 
@@ -664,7 +666,7 @@ unsigned long arm64_locate_kernel_segment(struct kexec_info *info)
 
 	if (info->kexec_flags & KEXEC_ON_CRASH) {
 		unsigned long hole_end;
-
+		dbgprintf("[DB] %s: KEXEC_ON_CRASH, calculate hole\n", __func__);
 		hole = (crash_reserved_mem.start < mem_min ?
 				mem_min : crash_reserved_mem.start);
 		hole = _ALIGN_UP(hole, MiB(2));
@@ -726,7 +728,7 @@ int arm64_load_other_segments(struct kexec_info *info,
 		dtb.name = "dtb_user";
 		dtb.buf = slurp_file(arm64_opts.dtb, &dtb.size);
 	} else {
-		result = read_1st_dtb(&dtb);
+		result = read_1st_dtb(&dtb);  // 重用第一阶段的设备树文件
 
 		if (result) {
 			fprintf(stderr,
@@ -734,7 +736,7 @@ int arm64_load_other_segments(struct kexec_info *info,
 			return EFAILED;
 		}
 	}
-
+	// No kaslr-seed found
 	result = setup_2nd_dtb(&dtb, command_line,
 			info->kexec_flags & KEXEC_ON_CRASH);
 
@@ -742,7 +744,8 @@ int arm64_load_other_segments(struct kexec_info *info,
 		return EFAILED;
 
 	/* Put the other segments after the image. */
-
+	dbgprintf("[DB]: %s Image Size :%lx\n", __func__, arm64_mem.image_size);
+	
 	hole_min = image_base + arm64_mem.image_size;
 	if (info->kexec_flags & KEXEC_ON_CRASH)
 		hole_max = crash_reserved_mem.end;
@@ -797,9 +800,10 @@ int arm64_load_other_segments(struct kexec_info *info,
 		return EFAILED;
 	}
 
+	dbgprintf("[DB] %s: Loading the dtb %p\n", __func__, dtb.buf);
 	dtb_base = add_buffer_phys_virt(info, dtb.buf, dtb.size, dtb.size,
 		0, hole_min, hole_max, 1, 0);
-
+	dbgprintf("[DB]:after info->nr_segments %d\n", info->nr_segments);
 	/* dtb_base is valid if we got here. */
 
 	dbgprintf("dtb:    base %lx, size %lxh (%ld)\n", dtb_base, dtb.size,
@@ -810,15 +814,19 @@ int arm64_load_other_segments(struct kexec_info *info,
 
 	info->entry = (void *)elf_rel_get_addr(&info->rhdr, "purgatory_start");
 
+	dbgprintf("[DB]:info->nr_segments %d\n", info->nr_segments);
+	dbgprintf("[DB]:Starting arm64_sink %lx\n", purgatory_sink);
 	elf_rel_set_symbol(&info->rhdr, "arm64_sink", &purgatory_sink,
 		sizeof(purgatory_sink));
 
+	dbgprintf("[DB]:Starting rel Image %lx\n", image_base);
 	elf_rel_set_symbol(&info->rhdr, "arm64_kernel_entry", &image_base,
 		sizeof(image_base));
-
+		
+	dbgprintf("[DB]:Starting rel dtb_base %lx\n", dtb_base);
 	elf_rel_set_symbol(&info->rhdr, "arm64_dtb_addr", &dtb_base,
-		sizeof(dtb_base));
-
+		sizeof(dtb_base)); 
+ 
 	return 0;
 }
 
@@ -928,20 +936,20 @@ static int get_page_offset(void)
  * from VMCOREINFO note inside 'kcore'.
  */
 
-static int get_phys_offset_from_vmcoreinfo_pt_note(unsigned long *phys_offset)
-{
-	int fd, ret = 0;
+// static int get_phys_offset_from_vmcoreinfo_pt_note(unsigned long *phys_offset)
+// {
+// 	int fd, ret = 0;
 
-	if ((fd = open("/proc/kcore", O_RDONLY)) < 0) {
-		fprintf(stderr, "Can't open (%s).\n", "/proc/kcore");
-		return EFAILED;
-	}
+// 	if ((fd = open("/proc/kcore", O_RDONLY)) < 0) {
+// 		fprintf(stderr, "Can't open (%s).\n", "/proc/kcore");
+// 		return EFAILED;
+// 	}
 
-	ret = read_phys_offset_elf_kcore(fd, phys_offset);
+// 	ret = read_phys_offset_elf_kcore(fd, phys_offset);
 
-	close(fd);
-	return ret;
-}
+// 	close(fd);
+// 	return ret;
+// }
 
 /**
  * get_phys_base_from_pt_load - Helper for getting PHYS_OFFSET
@@ -997,7 +1005,7 @@ static bool to_be_excluded(char *str)
 int get_memory_ranges(struct memory_range **range, int *ranges,
 	unsigned long kexec_flags)
 {
-	unsigned long phys_offset = UINT64_MAX;
+	// unsigned long phys_offset = UINT64_MAX;
 	FILE *fp;
 	const char *iomem = proc_iomem();
 	char line[MAX_LINE], *str;
@@ -1007,37 +1015,37 @@ int get_memory_ranges(struct memory_range **range, int *ranges,
 	struct memory_range *last, excl_range;
 	int ret;
 
-	if (!try_read_phys_offset_from_kcore) {
-		/* Since kernel version 4.19, 'kcore' contains
-		 * a new PT_NOTE which carries the VMCOREINFO
-		 * information.
-		 * If the same is available, one should prefer the
-		 * same to retrieve 'PHYS_OFFSET' value exported by
-		 * the kernel as this is now the standard interface
-		 * exposed by kernel for sharing machine specific
-		 * details with the userland.
-		 */
-		ret = get_phys_offset_from_vmcoreinfo_pt_note(&phys_offset);
-		if (!ret) {
-			if (phys_offset != UINT64_MAX)
-				set_phys_offset(phys_offset,
-						"vmcoreinfo pt_note");
-		} else {
-			/* If we are running on a older kernel,
-			 * try to retrieve the 'PHYS_OFFSET' value
-			 * exported by the kernel in the 'kcore'
-			 * file by reading the PT_LOADs and determining
-			 * the correct combination.
-			 */
-			ret = get_phys_base_from_pt_load(&phys_offset);
-			if (!ret)
-				if (phys_offset != UINT64_MAX)
-					set_phys_offset(phys_offset,
-							"pt_load");
-		}
+	// if (!try_read_phys_offset_from_kcore) {
+	// 	/* Since kernel version 4.19, 'kcore' contains
+	// 	 * a new PT_NOTE which carries the VMCOREINFO
+	// 	 * information.
+	// 	 * If the same is available, one should prefer the
+	// 	 * same to retrieve 'PHYS_OFFSET' value exported by
+	// 	 * the kernel as this is now the standard interface
+	// 	 * exposed by kernel for sharing machine specific
+	// 	 * details with the userland.
+	// 	 */
+	// 	ret = get_phys_offset_from_vmcoreinfo_pt_note(&phys_offset);
+	// 	if (!ret) {
+	// 		if (phys_offset != UINT64_MAX)
+	// 			set_phys_offset(phys_offset,
+	// 					"vmcoreinfo pt_note");
+	// 	} else {
+	// 		/* If we are running on a older kernel,
+	// 		 * try to retrieve the 'PHYS_OFFSET' value
+	// 		 * exported by the kernel in the 'kcore'
+	// 		 * file by reading the PT_LOADs and determining
+	// 		 * the correct combination.
+	// 		 */
+	// 		ret = get_phys_base_from_pt_load(&phys_offset);
+	// 		if (!ret)
+	// 			if (phys_offset != UINT64_MAX)
+	// 				set_phys_offset(phys_offset,
+	// 						"pt_load");
+	// 	}
 
-		try_read_phys_offset_from_kcore = true;
-	}
+	// 	try_read_phys_offset_from_kcore = true;
+	// }
 
 	fp = fopen(iomem, "r");
 	if (!fp)

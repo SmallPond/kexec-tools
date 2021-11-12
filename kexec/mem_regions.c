@@ -135,6 +135,7 @@ int mem_regions_alloc_and_add(struct memory_ranges *ranges,
 	void *new_ranges;
 
 	if (ranges->size >= ranges->max_size) {
+		// 扩充 ranges 数组
 		new_ranges = realloc(ranges->ranges,
 				sizeof(struct memory_range) *
 				(ranges->max_size + KEXEC_MEMORY_RANGES));

@@ -136,7 +136,7 @@ static int crash_get_memory_ranges(void)
 	if (usablemem_rgns.size != 1)
 		return -EINVAL;
 
-	dbgprint_mem_range("Reserved memory range", &crash_reserved_mem, 1);
+	dbgprint_mem_range("Reserved crash memory range", &crash_reserved_mem, 1);
 
 	if (mem_regions_alloc_and_exclude(&system_memory_rgns,
 						&crash_reserved_mem)) {

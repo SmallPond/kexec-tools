@@ -352,7 +352,8 @@ void add_segment_phys_virt(struct kexec_info *info,
 		die("Invalid memory segment %p - %p\n",
 			(void *)base, (void *)last);
 	}
-
+	// 新增一个 segment 来记录
+	dbgprintf("[DB]:********** %d\n", info->nr_segments);
 	size = (info->nr_segments + 1) * sizeof(info->segment[0]);
 	info->segment = xrealloc(info->segment, size);
 	info->segment[info->nr_segments].buf   = buf;
@@ -624,7 +625,7 @@ char *slurp_file_len(const char *filename, off_t size, off_t *nread)
 
 	return slurp_fd(fd, filename, size, nread);
 }
-
+// slurp 啜饮
 char *slurp_decompress_file(const char *filename, off_t *r_size)
 {
 	char *kernel_buf;
@@ -723,8 +724,8 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 	/* slurp in the input kernel */
 	kernel_buf = slurp_decompress_file(kernel, &kernel_size);
 
-	dbgprintf("kernel: %p kernel_size: %#llx\n",
-		  kernel_buf, (unsigned long long)kernel_size);
+	dbgprintf("[DB] kernel file: %s, kernel: %p kernel_size: %#llx\n",
+		  kernel, kernel_buf, (unsigned long long)kernel_size);
 
 	if (get_memory_ranges(&info.memory_range, &info.memory_ranges,
 		info.kexec_flags) < 0 || info.memory_ranges == 0) {
@@ -747,6 +748,7 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		}
 	}
 	if (!type || guess_only) {
+		fprintf(stdout, "[DB]guess kernel type \n");
 		for (i = 0; i < file_types; i++) {
 			if (file_type[i].probe(kernel_buf, kernel_size) == 0)
 				break;
@@ -770,7 +772,7 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		return -1;
 	}
 	info.kexec_flags |= native_arch;
-
+	fprintf(stdout, "[DB] %s:kernel type is: %s, starting to load\n", __func__, type);
 	result = file_type[i].load(argc, argv, kernel_buf, kernel_size, &info);
 	if (result < 0) {
 		switch (result) {
@@ -816,7 +818,7 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		  info.entry, info.kexec_flags);
 	if (kexec_debug)
 		print_segments(stderr, &info);
-
+	// 向内核传递参数真正开始加载
 	if (xen_present())
 		result = xen_kexec_load(&info);
 	else
@@ -1595,6 +1597,8 @@ int main(int argc, char *argv[])
 			result = k_unload(kexec_flags);
 	}
 	if (do_load && (result == 0)) {
+		dbgprintf("%s do_kexec_file_syscall is %d\n", __func__, do_kexec_file_syscall);
+		dbgprintf("%s kexec flag is %08lx\n", __func__, kexec_flags);
 		if (do_kexec_file_syscall) {
 			result = do_kexec_file_load(fileind, argc, argv,
 						 kexec_file_flags);
