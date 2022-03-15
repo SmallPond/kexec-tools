@@ -53,6 +53,8 @@
 #include "kexec-lzma.h"
 #include <arch/options.h>
 
+#include<time.h>
+
 #define KEXEC_LOADED_PATH "/sys/kernel/kexec_loaded"
 #define KEXEC_CRASH_LOADED_PATH "/sys/kernel/kexec_crash_loaded"
 
@@ -353,7 +355,6 @@ void add_segment_phys_virt(struct kexec_info *info,
 			(void *)base, (void *)last);
 	}
 	// 新增一个 segment 来记录
-	dbgprintf("[DB]:********** %d\n", info->nr_segments);
 	size = (info->nr_segments + 1) * sizeof(info->segment[0]);
 	info->segment = xrealloc(info->segment, size);
 	info->segment[info->nr_segments].buf   = buf;
@@ -551,8 +552,8 @@ static char *slurp_file_generic(const char *filename, off_t *r_size,
 	 * This does not work on regular files which live in /proc and
 	 * we need this for some /proc/device-tree entries
 	 */
-	if (S_ISCHR(stats.st_mode)) {
-
+	if (S_ISCHR(stats.st_mode)) { // 字符设备
+		// 找到结束位置来获得kernel 大小
 		size = lseek(fd, 0, SEEK_END);
 		if (size < 0)
 			die("Can not seek file %s: %s\n", filename,
@@ -564,13 +565,15 @@ static char *slurp_file_generic(const char *filename, off_t *r_size,
 					filename, strerror(errno));
 		buf = slurp_fd(fd, filename, size, &nread);
 	} else if (S_ISBLK(stats.st_mode)) {
-		err = ioctl(fd, BLKGETSIZE64, &size);
+		err = ioctl(fd, BLKGETSIZE64, &size);  // 以字节为单位返回文件大小
 		if (err < 0)
 			die("Can't retrieve size of block device %s: %s\n",
 				filename, strerror(errno));
 		buf = slurp_fd(fd, filename, size, &nread);
 	} else {
 		size = stats.st_size;
+		// printf("[DB] kernel file don't locate in char or blk, use mmap [%s], file size %ld \n", use_mmap?"yes":"no", size);
+		// [DB] kernel don't locate in char or blk, use mmap [no] file size 45253
 		if (use_mmap) {
 			buf = mmap(NULL, size, PROT_READ|PROT_WRITE,
 				   MAP_PRIVATE, fd, 0);
@@ -629,13 +632,24 @@ char *slurp_file_len(const char *filename, off_t size, off_t *nread)
 char *slurp_decompress_file(const char *filename, off_t *r_size)
 {
 	char *kernel_buf;
-
+	struct timespec time_start={0, 0},time_end={0, 0};
+	clock_gettime(CLOCK_REALTIME, &time_start);
 	kernel_buf = zlib_decompress_file(filename, r_size);
+
 	if (!kernel_buf) {
+
 		kernel_buf = lzma_decompress_file(filename, r_size);
-		if (!kernel_buf)
-			return slurp_file(filename, r_size);
+		// 以上两个函数都是 NULL 我想要知道解压缩的时间是多少？
+		if (!kernel_buf) {
+			kernel_buf = slurp_file(filename, r_size);
+			clock_gettime(CLOCK_REALTIME, &time_end);
+			printf("decompress  : %.3lf ms\n", ((time_end.tv_sec-time_start.tv_sec)*1000000000+ (time_end.tv_nsec-time_start.tv_nsec))/1000000.0);
+			return kernel_buf;
+		}
+			
 	}
+	clock_gettime(CLOCK_REALTIME, &time_end);
+	printf("decompress  : %.3lf ms\n", ((time_end.tv_sec-time_start.tv_sec)*1000000000+ (time_end.tv_nsec-time_start.tv_nsec))/1000000.0);
 	return kernel_buf;
 }
 
@@ -709,10 +723,13 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 	struct kexec_info info;
 	long native_arch;
 	int guess_only = 0;
+	struct timespec time_start={0, 0},time_end={0, 0};
 
 	memset(&info, 0, sizeof(info));
 	info.kexec_flags = kexec_flags;
 	info.skip_checks = skip_checks;
+
+	clock_gettime(CLOCK_REALTIME, &time_start);
 
 	result = 0;
 	if (argc - fileind <= 0) {
@@ -724,8 +741,11 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 	/* slurp in the input kernel */
 	kernel_buf = slurp_decompress_file(kernel, &kernel_size);
 
-	dbgprintf("[DB] kernel file: %s, kernel: %p kernel_size: %#llx\n",
-		  kernel, kernel_buf, (unsigned long long)kernel_size);
+	clock_gettime(CLOCK_REALTIME, &time_end);
+	// dbgprintf("[DB] kernel file: %s, kernel: %p kernel_size: %#llx\n",
+	// 	  kernel, kernel_buf, (unsigned long long)kernel_size);
+	fprintf(stderr, "[DB] kernel file: %s, kernel: %p kernel_size: %#llx\n",
+		  kernel, kernel_buf, (unsigned long long)kernel_size); \
 
 	if (get_memory_ranges(&info.memory_range, &info.memory_ranges,
 		info.kexec_flags) < 0 || info.memory_ranges == 0) {
@@ -748,7 +768,6 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		}
 	}
 	if (!type || guess_only) {
-		fprintf(stdout, "[DB]guess kernel type \n");
 		for (i = 0; i < file_types; i++) {
 			if (file_type[i].probe(kernel_buf, kernel_size) == 0)
 				break;
@@ -772,7 +791,9 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		return -1;
 	}
 	info.kexec_flags |= native_arch;
-	fprintf(stdout, "[DB] %s:kernel type is: %s, starting to load\n", __func__, type);
+
+	dbgprintf("[DB] %s:kernel type is: %s, starting to load\n", __func__, type);
+
 	result = file_type[i].load(argc, argv, kernel_buf, kernel_size, &info);
 	if (result < 0) {
 		switch (result) {
@@ -818,6 +839,7 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 		  info.entry, info.kexec_flags);
 	if (kexec_debug)
 		print_segments(stderr, &info);
+
 	// 向内核传递参数真正开始加载
 	if (xen_present())
 		result = xen_kexec_load(&info);
@@ -833,6 +855,7 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
 			info.entry, info.kexec_flags);
 		print_segments(stderr, &info);
 	}
+	printf("user load : %.3lf ms\n", ((time_end.tv_sec-time_start.tv_sec)*1000000000+ (time_end.tv_nsec-time_start.tv_nsec))/1000000.0);
 	return result;
 }
 
@@ -1358,6 +1381,9 @@ int main(int argc, char *argv[])
 	int opt;
 	int result = 0;
 	int fileind;
+
+	struct timespec time_start={0, 0},time_end={0, 0};
+
 	static const struct option options[] = {
 		KEXEC_ALL_OPTIONS
 		{ 0, 0, 0, 0},
@@ -1596,6 +1622,8 @@ int main(int argc, char *argv[])
 		if (!do_kexec_file_syscall)
 			result = k_unload(kexec_flags);
 	}
+	clock_gettime(CLOCK_REALTIME, &time_start);
+
 	if (do_load && (result == 0)) {
 		dbgprintf("%s do_kexec_file_syscall is %d\n", __func__, do_kexec_file_syscall);
 		dbgprintf("%s kexec flag is %08lx\n", __func__, kexec_flags);
@@ -1613,6 +1641,8 @@ int main(int argc, char *argv[])
 			result = my_load(type, fileind, argc, argv,
 						kexec_flags, skip_checks, entry);
 	}
+
+	clock_gettime(CLOCK_REALTIME, &time_end);
 	/* Don't shutdown unless there is something to reboot to! */
 	if ((result == 0) && (do_shutdown || do_exec) && !kexec_loaded(KEXEC_LOADED_PATH)) {
 		die("Nothing has been loaded!\n");
@@ -1637,5 +1667,6 @@ int main(int argc, char *argv[])
 
 	fflush(stdout);
 	fflush(stderr);
+	printf("total : %.3lf ms\n", ((time_end.tv_sec-time_start.tv_sec)*1000000000+ (time_end.tv_nsec-time_start.tv_nsec))/1000000.0);
 	return result;
 } 

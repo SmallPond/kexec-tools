@@ -62,7 +62,7 @@ int image_arm64_load(int argc, char **argv, const char *kernel_buf,
 	}
 
 	header = (const struct arm64_image_header *)(kernel_buf);
-	fprintf(stdout, "[DB] arm64_process_image_header.\n");
+	// dbgprintf("[DB] arm64_process_image_header.\n");
 	if (arm64_process_image_header(header))
 		return EFAILED;
 

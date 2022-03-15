@@ -209,6 +209,8 @@ fail:
 #else
 char *lzma_decompress_file(const char *UNUSED(filename), off_t *UNUSED(r_size))
 {
+	
+	// printf("lzma_decompress_file\n");
 	return NULL;
 }
 #endif /* HAVE_LIBLZMA */

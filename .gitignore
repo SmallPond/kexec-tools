@@ -19,3 +19,4 @@
 /include/config.h
 /purgatory/purgatory.map
 /purgatory/purgatory.ro.sym
+kexec-*-debug

@@ -125,6 +125,7 @@ int is_zlib_file(const char *filename, off_t *r_size)
 
 char *zlib_decompress_file(const char *UNUSED(filename), off_t *UNUSED(r_size))
 {
+	// printf("zlib_decompress_file\n");
 	return NULL;
 }
 #endif /* HAVE_ZLIB */
